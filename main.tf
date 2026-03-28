@@ -44,8 +44,8 @@ resource "aws_eip" "nat" {
 
 # Nat Gateway in public subnet
 resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat
-  subnet_id     = aws_subnet.public[0]
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id
 
 }
 
@@ -69,7 +69,7 @@ resource "aws_route_table_association" "private_sub" {
 }
 
 # data block for subnets
-data "aws_availability_zone" "available" {
+data "aws_availability_zones" "available" {
   state = "available"
 
 }
@@ -80,7 +80,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.${count.index}.0/24"
   map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zone.available.name[count.index]
+  availability_zone       = data.aws_availability_zone.available.names[count.index]
   tags = {
     Name = "public-subnet-${count.index}"
   }
@@ -91,7 +91,7 @@ resource "aws_subnet" "private" {
   count             = 2
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.${count.index + 2}.0/24"
-  availability_zone = data.aws_availability_zone.available.name[count.index]
+  availability_zone = data.aws_availability_zone.available.names[count.index]
   tags = {
     Name = "private-subnet-${count.index}"
   }
@@ -122,7 +122,7 @@ resource "aws_iam_role" "lambda_role" {
   name = "my_lambda_role"
 
   assume_role_policy = jsonencode({
-    Verssion = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [{
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
@@ -187,8 +187,8 @@ resource "aws_key_pair" "name" {
 }
 
 resource "local_file" "name" {
-  filename        = "{path.module}/k8-key.pem"
-  content         = tls_private_key.main.public_key_pem
+  filename        = "${path.module}/k8-key.pem"
+  content         = tls_private_key.main.private_key_pem
   file_permission = "0400"
 
 }
@@ -196,7 +196,7 @@ resource "local_file" "name" {
 resource "aws_instance" "k8_private" {
   ami                    = data.aws_ami.latest.id
   instance_type          = "t2.medium"
-  subnet_id              = aws_subnet.private[*].id
+  subnet_id              = aws_subnet.private[0].id
   vpc_security_group_ids = [aws_security_group.sg.id]
   key_name               = aws_key_pair.name.key_name
   user_data              = file("${path.module}/script.sh")
